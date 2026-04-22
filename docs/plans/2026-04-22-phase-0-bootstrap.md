@@ -6,7 +6,7 @@
 
 **Architecture:** Single .NET 8 solution with 8 source projects and 8 test projects, organized per the design at `docs/plans/2026-04-22-tracehunter-design.md` §11. Project graph: `Core` is the base; `Capture`/`Normalization`/`Enrichment`/`Detection`/`Storage` reference `Core`; `Web` references `Detection`/`Enrichment`/`Storage`/`Core`; `Host` references everything. No business logic in this phase — purely scaffolding.
 
-**Tech Stack:** .NET 8 SDK, C# 12, xUnit, FluentAssertions, bUnit, GitHub Actions on `windows-latest`.
+**Tech Stack:** .NET 8 LTS SDK (latest 8.0.x patch — supports Windows 10 1607+ and all Windows 11; the only current LTS that still runs on LTSC 2016), C# 12, target framework `net8.0-windows`, xUnit, FluentAssertions, bUnit, GitHub Actions on `windows-latest`.
 
 ---
 
@@ -33,15 +33,17 @@ You're implementing Phase 0 of a project whose full design lives at `docs/plans/
 {
   "sdk": {
     "version": "8.0.100",
-    "rollForward": "latestMinor"
+    "rollForward": "latestFeature"
   }
 }
 ```
 
+`rollForward: latestFeature` accepts any installed 8.x.y SDK at or above 8.0.100 — keeps dev/CI in sync without manual version bumps.
+
 **Step 2: Verify**
 
-Run: `dotnet --version`
-Expected: prints a version >= 8.0.100. If not, install .NET 8 SDK.
+Run: `dotnet --list-sdks`
+Expected: at least one 8.0.x entry. If only newer SDKs are installed (e.g. 9.x or 10.x), install latest .NET 8 SDK from https://dotnet.microsoft.com/download/dotnet/8.0 — .NET 8 is required because it's the only current LTS that supports Windows 10 1607 / LTSC 2016.
 
 **Step 3: Commit**
 
@@ -62,7 +64,7 @@ git commit -m "build: pin .NET 8 SDK via global.json"
 ```xml
 <Project>
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <LangVersion>12</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
