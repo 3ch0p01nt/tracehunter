@@ -1,0 +1,41 @@
+# Build output
+bin/
+obj/
+out/
+publish/
+artifacts/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userprefs
+
+# .NET
+*.dll
+*.pdb
+*.exe
+!docs/**/*.exe
+project.lock.json
+TestResults/
+*.coverage
+*.coveragexml
+
+# Single-file publish
+**/publish/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local TraceHunter runtime data (should never be committed)
+data/
+logs/
+*.db
+*.db-shm
+*.db-wal
+*.etl
+*.etlx
