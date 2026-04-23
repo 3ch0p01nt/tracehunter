@@ -2,11 +2,11 @@
 
 > Open-source .NET-native EDR for Windows. Programmable ETW threat hunting in a single self-contained executable.
 
-**Status:** Phase 0 - bootstrap. Not yet functional. See [the design doc](docs/plans/2026-04-22-tracehunter-design.md) for the full v1.0 plan.
+**Status:** Phase 0 — bootstrap. Not yet functional. See [the design doc](docs/plans/2026-04-22-tracehunter-design.md) for the full v1.0 plan.
 
 ## What it is
 
-TraceHunter turns Event Tracing for Windows (ETW) into a real-time threat-hunting platform. It captures kernel and user-mode events from seven providers, normalizes them, evaluates them against Sigma-format and native YAML rules, maintains a live process provenance graph, and exposes everything through an embedded local web UI - all in one `tracehunter.exe`.
+TraceHunter turns Event Tracing for Windows (ETW) into a real-time threat-hunting platform. It captures kernel and user-mode events from seven providers, normalizes them, evaluates them against Sigma-format and native YAML rules, maintains a live process provenance graph, and exposes everything through an embedded local web UI — all in one `tracehunter.exe`.
 
 ## Why not just use Sysmon
 
@@ -30,7 +30,7 @@ See [`docs/plans/2026-04-22-tracehunter-design.md`](docs/plans/2026-04-22-traceh
 
 ## License
 
-Apache 2.0 - see [LICENSE](LICENSE).
+Apache 2.0 — see [LICENSE](LICENSE).
 
 ## Contributing
 

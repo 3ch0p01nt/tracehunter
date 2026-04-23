@@ -4,8 +4,8 @@ Thanks for your interest. TraceHunter is in early-stage development; the design 
 
 ## Before you open a PR
 
-1. Read [`docs/plans/2026-04-22-tracehunter-design.md`](docs/plans/2026-04-22-tracehunter-design.md) - it captures every architectural decision and the v1.0 phase plan.
-2. Check open issues - a maintainer may already be working on the area.
+1. Read [`docs/plans/2026-04-22-tracehunter-design.md`](docs/plans/2026-04-22-tracehunter-design.md) — it captures every architectural decision and the v1.0 phase plan.
+2. Check open issues — a maintainer may already be working on the area.
 3. For non-trivial changes, open an issue first to discuss.
 
 ## Development setup

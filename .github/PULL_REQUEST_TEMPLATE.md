@@ -10,7 +10,7 @@
 
 - [ ] Unit tests added/updated
 - [ ] Integration tests pass locally
-- [ ] Manual smoke test (`scripts/smoke.ps1`) passes - once that lands
+- [ ] Manual smoke test (`scripts/smoke.ps1`) passes — once that lands
 
 ## Checklist
 
