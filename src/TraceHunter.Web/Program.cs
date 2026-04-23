@@ -2,11 +2,9 @@ namespace TraceHunter.Web;
 
 public static class Program
 {
-    public static void Main(string[] args)
+    public static int Main(string[] args)
     {
-        // Phase 0 scaffolding stub. The real Blazor Server host lands in a later phase.
-        var builder = WebApplication.CreateBuilder(args);
-        var app = builder.Build();
-        app.Run();
+        Console.WriteLine("TraceHunter.Web (scaffolding stub) - real Blazor Server host lands in Phase 6");
+        return 0;
     }
 }
