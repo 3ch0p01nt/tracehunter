@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="..\TraceHunter.Core\TraceHunter.Core.csproj" />
+    <ProjectReference Include="..\TraceHunter.Normalization\TraceHunter.Normalization.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" />

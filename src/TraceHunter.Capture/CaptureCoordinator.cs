@@ -4,6 +4,7 @@ using System.Runtime.Versioning;
 using System.Threading.Channels;
 using Microsoft.Diagnostics.Tracing.Parsers;
 using TraceHunter.Core;
+using TraceHunter.Normalization;
 
 namespace TraceHunter.Capture;
 
@@ -21,13 +22,16 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     private readonly CaptureSettings _settings;
     private readonly IPrivilegeProbe _privilege;
     private readonly Channel<RawEvent> _channel;
+    private readonly Channel<NormalizedEvent> _normalizedChannel;
     private readonly Dictionary<ProviderId, ProviderState> _states;
     private KernelSessionHost? _kernelHost;
     private UserSessionHost? _userHost;
+    private NormalizationStage? _normalizationStage;
     private long _eventsObserved;
     private long _eventsDropped;
 
     public ChannelReader<RawEvent> Reader => _channel.Reader;
+    public ChannelReader<NormalizedEvent> NormalizedReader => _normalizedChannel.Reader;
 
     public CaptureCoordinator(CaptureSettings settings, IPrivilegeProbe privilege)
     {
@@ -37,6 +41,10 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         _settings = settings;
         _privilege = privilege;
         _channel = Channel.CreateBounded<RawEvent>(new BoundedChannelOptions(settings.ChannelCapacity)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest,
+        });
+        _normalizedChannel = Channel.CreateBounded<NormalizedEvent>(new BoundedChannelOptions(settings.ChannelCapacity)
         {
             FullMode = BoundedChannelFullMode.DropOldest,
         });
@@ -93,6 +101,21 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             await _userHost.StartAsync(cancellationToken).ConfigureAwait(false);
             SetStates(userProviders.Select(p => p.Id), ProviderState.Running);
         }
+
+        // Normalization stage starts AFTER session hosts so the raw channel is
+        // already populated when the dispatch loop attaches.
+        var parsers = new INormalizedParser[]
+        {
+            new ProcessParser(),
+            new ImageLoadParser(),
+            new NetworkParser(),
+            new ScriptParser(),
+            new RuntimeParser(),
+            new DnsParser(),
+        };
+        var registry = new ParserRegistry(parsers);
+        _normalizationStage = new NormalizationStage(registry, _channel.Reader, _normalizedChannel.Writer);
+        await _normalizationStage.StartAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public CaptureStatus GetStatus() => new(
@@ -103,9 +126,15 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        // Dispose hosts in reverse start order. User-mode session is safe to
-        // tear down first; kernel session last. Channel writer completes only
-        // after both producers are gone so consumers see a clean end-of-stream.
+        // Dispose in reverse start order. The normalization stage stops draining
+        // first so it does not race the host shutdown for in-flight events. Then
+        // user-mode session, then kernel session (their reverse-of-start order).
+        // Channel writers complete only after their producers are gone so
+        // consumers see a clean end-of-stream.
+        if (_normalizationStage is not null)
+        {
+            await _normalizationStage.DisposeAsync().ConfigureAwait(false);
+        }
         if (_userHost is not null)
         {
             await _userHost.DisposeAsync().ConfigureAwait(false);
@@ -115,6 +144,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             await _kernelHost.DisposeAsync().ConfigureAwait(false);
         }
         _channel.Writer.TryComplete();
+        _normalizedChannel.Writer.TryComplete();
     }
 
     private void SetStates(IEnumerable<ProviderId> providers, ProviderState state)
