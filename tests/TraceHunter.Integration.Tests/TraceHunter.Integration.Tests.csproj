@@ -20,6 +20,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\TraceHunter.Host\TraceHunter.Host.csproj" />
+    <ProjectReference Include="..\..\src\TraceHunter.Capture\TraceHunter.Capture.csproj" />
+    <ProjectReference Include="..\..\src\TraceHunter.Core\TraceHunter.Core.csproj" />
   </ItemGroup>
 
 </Project>
