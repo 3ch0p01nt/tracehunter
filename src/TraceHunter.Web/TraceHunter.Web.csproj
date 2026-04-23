@@ -1,4 +1,7 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <UseStaticWebAssets>true</UseStaticWebAssets>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\TraceHunter.Core\TraceHunter.Core.csproj" />
     <ProjectReference Include="..\TraceHunter.Detection\TraceHunter.Detection.csproj" />

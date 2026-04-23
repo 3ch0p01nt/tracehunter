@@ -3,4 +3,8 @@
     <ProjectReference Include="..\TraceHunter.Core\TraceHunter.Core.csproj" />
     <ProjectReference Include="..\TraceHunter.Normalization\TraceHunter.Normalization.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="JsonSchema.Net" Version="9.2.0" />
+    <PackageReference Include="YamlDotNet" Version="17.0.1" />
+  </ItemGroup>
 </Project>
