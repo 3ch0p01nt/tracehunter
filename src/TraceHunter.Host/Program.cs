@@ -1,10 +1,14 @@
+using System.CommandLine;
+using TraceHunter.Host.Commands;
+
 namespace TraceHunter.Host;
 
 public static class Program
 {
-    public static int Main(string[] args)
+    public static async Task<int> Main(string[] args)
     {
-        Console.WriteLine("TraceHunter (scaffolding stub) - phase 0");
-        return 0;
+        var root = new RootCommand("TraceHunter - .NET-native EDR for Windows");
+        root.Subcommands.Add(CaptureCommand.Build());
+        return await root.Parse(args).InvokeAsync().ConfigureAwait(false);
     }
 }

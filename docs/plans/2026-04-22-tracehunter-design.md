@@ -321,9 +321,16 @@ Sustained Tier 3 for >60s emits a self-finding (`th.self.backpressure`) so analy
 
 Each provider session is independent. Failure in one (e.g. CLR provider manifest issue) does not stop others. UI Settings page shows red status with the underlying exception. Restart attempted with exponential backoff (max 5 attempts) then marked permanently failed until config reload.
 
-### 7.3 Privilege degradation
+### 7.3 Privilege requirement
 
-Startup probe: try to start kernel session. If `Access is denied`, log it, skip kernel-only providers, run the rest. UI banner on first load: "Running in user-mode. N of 7 providers active. <list> disabled."
+ALL ETW session creation on Windows 10/11 — kernel and user-mode alike — requires the calling process to be elevated (admin) OR the calling user to be a member of the `Performance Log Users` group (typically empty by default). This is enforced by Windows at the `StartTrace` API level and is non-negotiable. Phase 1 verified this against the real OS; the original "graceful fallback to user-mode" design assumption was incorrect and has been corrected.
+
+**Behavior:** Startup probe checks `WindowsPrincipal.IsInRole(Administrator)`. If not elevated:
+- No ETW sessions are started. The capture pipeline is inert but does not throw.
+- `CaptureStatus.NeedsElevation` is set to `true` and surfaces as a clear UI banner: "TraceHunter requires elevation to capture ETW events. Re-run from an elevated terminal, or add yourself to the Performance Log Users group."
+- The CLI verb `tracehunter capture --raw` exits with code 3 and the same guidance on stderr.
+
+**Future consideration:** A read-only "analyze ETLX file" mode could provide a non-privileged use case (post-incident forensic analysis of recorded traces). Out of scope for v1.0; tracked as a v1.2+ enhancement.
 
 ### 7.4 Rule load failures
 
