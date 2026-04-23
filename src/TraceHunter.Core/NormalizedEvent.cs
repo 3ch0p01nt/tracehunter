@@ -1,5 +1,14 @@
+using System.Text.Json.Serialization;
+
 namespace TraceHunter.Core;
 
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
+[JsonDerivedType(typeof(Process), nameof(Process))]
+[JsonDerivedType(typeof(ImageLoad), nameof(ImageLoad))]
+[JsonDerivedType(typeof(Network), nameof(Network))]
+[JsonDerivedType(typeof(Script), nameof(Script))]
+[JsonDerivedType(typeof(Runtime), nameof(Runtime))]
+[JsonDerivedType(typeof(Dns), nameof(Dns))]
 public abstract record NormalizedEvent(
     DateTimeOffset Timestamp,
     int ProcessId,
