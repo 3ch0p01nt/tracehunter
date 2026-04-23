@@ -568,11 +568,15 @@ public sealed class UserSessionHost : ISessionHost
 **Step 5: Run tests**
 
 Run: `dotnet test --filter FullyQualifiedName~UserSessionHostTests --nologo`
-Expected: PASS on Windows (test asserts the Ping event lands in the channel).
 
-If you're not running as admin, the user-mode session does NOT need elevation. The test should pass without UAC.
+**Important reality:** ALL ETW session creation on Windows 10/11 requires the calling process to be elevated (admin) OR the calling user to be a member of `Performance Log Users` (typically empty by default). This applies to user-mode sessions just as it does to kernel sessions — the OS-level `StartTrace` API is privileged regardless of which providers you intend to subscribe to. The plan originally claimed user-mode sessions don't need elevation; that claim was wrong and has been removed.
 
-If the test times out: increase the post-Start delay; ETW dispatch loop attachment can be slow on first-run with cold caches.
+The test therefore uses `Skip.IfNot(new PrivilegeProbe().IsElevated(), ...)` after the Windows-only check. Expected outcomes:
+- Elevated terminal: PASS — Ping event arrives in channel.
+- Non-elevated terminal: SKIPPED — message explains the elevation requirement.
+- CI (`windows-latest` runner runs without elevation): SKIPPED.
+
+If you want to actually exercise the success path, run from an elevated PowerShell/cmd. If the test times out when elevated: increase the post-Start delay; ETW dispatch loop attachment can be slow on first-run with cold caches.
 
 **Step 6: Commit**
 
@@ -763,15 +767,19 @@ git commit -m "feat(capture): add KernelSessionHost for Process/Image/TcpIp prov
 
 ---
 
-## Task 5: CaptureCoordinator with privilege fallback
+## Task 5: CaptureCoordinator with privilege gate
 
 **Files:**
 - Create: `src/TraceHunter.Capture/CaptureCoordinator.cs`
 - Test: `tests/TraceHunter.Capture.Tests/CaptureCoordinatorTests.cs`
 
+**Behavioral note (revised after T3 surfaced the ETW elevation reality):**
+ALL ETW session creation requires elevation. The "graceful fallback" is therefore not "kernel disabled, user-mode keeps working" but "no sessions start, status surfaces a clear NeedsElevation banner, capture is inert, no exception." The CLI in T6 inspects status and emits a helpful error if needed. This matches how PerfView and dotnet-trace behave on non-elevated runs.
+
 **Step 1: Write the failing tests**
 
 ```csharp
+using System.Collections.Immutable;
 using System.Threading.Channels;
 using AwesomeAssertions;
 using TraceHunter.Capture;
@@ -787,11 +795,9 @@ public class CaptureCoordinatorTests
         public bool IsElevated() => elevated;
     }
 
-    [SkippableFact]
-    public async Task StartAsync_when_not_admin_skips_kernel_and_runs_user_only()
+    [Fact]
+    public async Task StartAsync_when_not_elevated_starts_no_sessions_and_marks_all_providers_not_configured()
     {
-        Skip.IfNot(OperatingSystem.IsWindows(), "Windows only");
-
         var settings = new CaptureSettings
         {
             EnableKernelSession = true,
@@ -799,31 +805,49 @@ public class CaptureCoordinatorTests
             UserSessionName = $"TH-Test-{Guid.NewGuid():N}",
         };
 
-        var coordinator = new CaptureCoordinator(settings, new FakePrivilegeProbe(elevated: false));
+        await using var coordinator = new CaptureCoordinator(settings, new FakePrivilegeProbe(elevated: false));
         await coordinator.StartAsync(CancellationToken.None);
 
         var status = coordinator.GetStatus();
-        status.ProviderStates[ProviderId.KernelProcess].Should().Be(ProviderState.NotConfigured);
-        status.ProviderStates[ProviderId.PowerShell].Should().BeOneOf(ProviderState.Starting, ProviderState.Running);
-
-        await coordinator.DisposeAsync();
+        status.NeedsElevation.Should().BeTrue();
+        status.ProviderStates.Values.Should().AllSatisfy(s => s.Should().Be(ProviderState.NotConfigured));
     }
 
-    [SkippableFact]
-    public async Task Channel_exposes_events_to_consumer()
+    [Fact]
+    public async Task Reader_is_available_regardless_of_elevation()
     {
-        Skip.IfNot(OperatingSystem.IsWindows(), "Windows only");
-
         var settings = new CaptureSettings { UserSessionName = $"TH-Test-{Guid.NewGuid():N}" };
-        var coordinator = new CaptureCoordinator(settings, new FakePrivilegeProbe(elevated: false));
+        await using var coordinator = new CaptureCoordinator(settings, new FakePrivilegeProbe(elevated: false));
         await coordinator.StartAsync(CancellationToken.None);
 
         coordinator.Reader.Should().NotBeNull();
+    }
 
-        await coordinator.DisposeAsync();
+    [SkippableFact]
+    public async Task StartAsync_when_elevated_starts_user_session_providers()
+    {
+        Skip.IfNot(OperatingSystem.IsWindows(), "Windows only");
+        Skip.IfNot(new PrivilegeProbe().IsElevated(),
+            "Requires elevated process - ETW session creation needs admin or Performance Log Users");
+
+        var settings = new CaptureSettings
+        {
+            EnableKernelSession = false, // isolate user-session test from kernel
+            EnableUserSession = true,
+            UserSessionName = $"TH-Test-{Guid.NewGuid():N}",
+        };
+
+        await using var coordinator = new CaptureCoordinator(settings, new PrivilegeProbe());
+        await coordinator.StartAsync(CancellationToken.None);
+
+        var status = coordinator.GetStatus();
+        status.NeedsElevation.Should().BeFalse();
+        status.ProviderStates[ProviderId.PowerShell].Should().Be(ProviderState.Running);
     }
 }
 ```
+
+**Note on `CaptureStatus.NeedsElevation`:** add a `bool NeedsElevation` field to `CaptureStatus` (Phase 1 Task 1's record). This is a new field — bump the record's positional list and update the GetStatus call site accordingly. Add a unit test in `RawEventTests.cs`'s sibling class for the new field if you like, but it's a passive carrier so test coverage from these two tests is enough.
 
 **Step 2: Run to verify failure**
 
@@ -869,12 +893,20 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        // ALL ETW session creation requires elevation - if we're not elevated,
+        // start nothing. Status will surface NeedsElevation=true so the CLI/UI
+        // can emit a helpful message. No exception thrown - graceful inert state.
+        if (!_privilege.IsElevated())
+        {
+            return;
+        }
+
         // Wrap writer so we can count
         var countingWriter = new CountingChannelWriter<RawEvent>(_channel.Writer,
             onWrite: () => Interlocked.Increment(ref _eventsObserved),
             onDrop: () => Interlocked.Increment(ref _eventsDropped));
 
-        if (_settings.EnableKernelSession && _privilege.IsElevated())
+        if (_settings.EnableKernelSession)
         {
             _kernelHost = new KernelSessionHost(countingWriter);
             await _kernelHost.StartAsync(cancellationToken);
@@ -902,7 +934,8 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     public CaptureStatus GetStatus() => new(
         ProviderStates: _states.ToImmutableDictionary(),
         EventsObserved: Interlocked.Read(ref _eventsObserved),
-        EventsDropped: Interlocked.Read(ref _eventsDropped));
+        EventsDropped: Interlocked.Read(ref _eventsDropped),
+        NeedsElevation: !_privilege.IsElevated());
 
     public async ValueTask DisposeAsync()
     {
@@ -938,13 +971,13 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 **Step 4: Run tests**
 
 Run: `dotnet test --filter FullyQualifiedName~CaptureCoordinatorTests --nologo`
-Expected: PASS on Windows.
+Expected: 2 unit tests PASS unconditionally; 1 integration test SKIPS (or PASSES if run elevated).
 
 **Step 5: Commit**
 
 ```bash
-git add src/TraceHunter.Capture tests/TraceHunter.Capture.Tests
-git commit -m "feat(capture): add CaptureCoordinator with privilege fallback"
+git add src/TraceHunter.Capture tests/TraceHunter.Capture.Tests src/TraceHunter.Core/CaptureStatus.cs
+git commit -m "feat(capture): add CaptureCoordinator with privilege gate"
 ```
 
 ---
@@ -1015,7 +1048,19 @@ internal static class CaptureCommand
             await using var coordinator = new CaptureCoordinator(settings, new PrivilegeProbe());
             await coordinator.StartAsync(ct);
 
-            Console.Error.WriteLine($"Capturing... press Ctrl+C to stop. Status: {JsonSerializer.Serialize(coordinator.GetStatus())}");
+            var status = coordinator.GetStatus();
+            if (status.NeedsElevation)
+            {
+                Console.Error.WriteLine("TraceHunter requires elevation to create ETW sessions.");
+                Console.Error.WriteLine("Either:");
+                Console.Error.WriteLine("  1. Re-run from an elevated terminal (right-click -> Run as administrator), OR");
+                Console.Error.WriteLine("  2. Add yourself to the Performance Log Users group:");
+                Console.Error.WriteLine("       net localgroup \"Performance Log Users\" %USERNAME% /add");
+                Console.Error.WriteLine("     (then sign out and back in for the group membership to take effect)");
+                return 3;
+            }
+
+            Console.Error.WriteLine($"Capturing... press Ctrl+C to stop. Status: {JsonSerializer.Serialize(status)}");
 
             await foreach (var ev in coordinator.Reader.ReadAllAsync(ct))
             {
@@ -1091,20 +1136,17 @@ public class CaptureEndToEndTests
     public async Task End_to_end_user_session_captures_synthetic_event()
     {
         Skip.IfNot(OperatingSystem.IsWindows(), "Windows only");
+        Skip.IfNot(new PrivilegeProbe().IsElevated(),
+            "Requires elevated process - ETW session creation needs admin or Performance Log Users");
 
-        var settings = new CaptureSettings
-        {
-            EnableKernelSession = false,
-            EnableUserSession = true,
-            UserSessionName = $"TH-Integration-{Guid.NewGuid():N}",
-            EnabledProviders = new HashSet<ProviderId> { ProviderId.PowerShell },
-        };
+        var sessionName = $"TH-Integration-{Guid.NewGuid():N}";
 
-        // We can't add ad-hoc providers via CaptureSettings in v1; use UserSessionHost directly
+        // Use UserSessionHost directly so we can register an ad-hoc test EventSource GUID
+        // (CaptureCoordinator only knows about the well-known provider GUIDs)
         var channel = System.Threading.Channels.Channel.CreateBounded<RawEvent>(100);
         await using var host = new UserSessionHost(
-            settings.UserSessionName,
-            new[] { (IntegrationTestEventSource.ProviderGuid, ProviderId.Unknown) },
+            sessionName,
+            new[] { (IntegrationTestEventSource.ProviderGuid, ProviderId.Test) },
             channel.Writer);
 
         await host.StartAsync(CancellationToken.None);
@@ -1123,7 +1165,7 @@ public class CaptureEndToEndTests
 **Step 2: Run**
 
 Run: `dotnet test --filter FullyQualifiedName~CaptureEndToEndTests --nologo`
-Expected: PASS on Windows; SKIP on non-Windows.
+Expected: PASS on Windows when elevated; SKIP otherwise (CI on `windows-latest` will SKIP).
 
 **Step 3: Commit**
 
@@ -1155,16 +1197,20 @@ dotnet format --verify-no-changes --no-restore
 ```
 Expected: exits 0.
 
-**Step 3: Smoke test the capture CLI**
+**Step 3: Smoke test the capture CLI — REQUIRES ELEVATED TERMINAL**
+
+In an **elevated PowerShell or cmd** (right-click -> Run as administrator), navigate to the repo and run:
 
 ```bash
 dotnet run --project src/TraceHunter.Host --configuration Release -- capture --raw
 ```
 
 Let it run for ~5 seconds, then Ctrl+C. Confirm:
-- Stderr shows status JSON.
-- Stdout emits at least one RawEvent JSON line.
+- Stderr shows status JSON with `"NeedsElevation":false`.
+- Stdout emits at least one RawEvent JSON line (CLR runtime events from the dotnet process itself fire constantly; PowerShell events fire as Windows churns).
 - Process exits cleanly on Ctrl+C.
+
+If you run this in a non-elevated terminal, expect to see the elevation guidance message on stderr and exit code 3. That is the correct error behavior, not a bug.
 
 **Step 4: Confirm git state**
 
