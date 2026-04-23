@@ -160,16 +160,22 @@ Create `src/TraceHunter.Core/ProviderId.cs`:
 ```csharp
 namespace TraceHunter.Core;
 
+// Numeric values pinned. Storage in v1 (Phase 4 SQLite) and JSON sinks
+// will persist these as integers. Add new providers with explicit values
+// at the end; never reuse retired values.
 public enum ProviderId
 {
     Unknown = 0,
-    KernelProcess,
-    KernelImage,
-    KernelNetwork,
-    PowerShell,
-    DotNetRuntime,
-    DnsClient,
-    WmiActivity,
+    KernelProcess = 1,
+    KernelImage = 2,
+    KernelNetwork = 3,
+    PowerShell = 4,
+    DotNetRuntime = 5,
+    DnsClient = 6,
+    WmiActivity = 7,
+    KernelFileIo = 8,    // reserved (v1.2)
+    KernelRegistry = 9,  // reserved (v1.2)
+    Test = 99,           // reserved for synthetic test EventSources
 }
 ```
 
@@ -201,22 +207,24 @@ public sealed record RawEvent(
 Create `src/TraceHunter.Core/CaptureSettings.cs`:
 
 ```csharp
+using System.Collections.Frozen;
+
 namespace TraceHunter.Core;
 
 public sealed record CaptureSettings
 {
     public bool EnableKernelSession { get; init; } = true;
     public bool EnableUserSession { get; init; } = true;
-    public IReadOnlySet<ProviderId> EnabledProviders { get; init; } = AllProviders;
+    public FrozenSet<ProviderId> EnabledProviders { get; init; } = AllProviders;
     public int ChannelCapacity { get; init; } = 100_000;
     public string KernelSessionName { get; init; } = "TraceHunter-Kernel";
     public string UserSessionName { get; init; } = "TraceHunter-User";
 
-    public static IReadOnlySet<ProviderId> AllProviders { get; } = new HashSet<ProviderId>
+    public static FrozenSet<ProviderId> AllProviders { get; } = new[]
     {
         ProviderId.KernelProcess, ProviderId.KernelImage, ProviderId.KernelNetwork,
         ProviderId.PowerShell, ProviderId.DotNetRuntime, ProviderId.DnsClient, ProviderId.WmiActivity,
-    };
+    }.ToFrozenSet();
 }
 ```
 
@@ -227,10 +235,14 @@ Note: `KernelSessionName` is a hint; the actual kernel session may need the lite
 Create `src/TraceHunter.Core/CaptureStatus.cs`:
 
 ```csharp
+using System.Collections.Immutable;
+
 namespace TraceHunter.Core;
 
+// ProviderStates is a snapshot. Use ImmutableDictionary so consumers
+// holding a CaptureStatus past the next state transition see a stable view.
 public sealed record CaptureStatus(
-    IReadOnlyDictionary<ProviderId, ProviderState> ProviderStates,
+    ImmutableDictionary<ProviderId, ProviderState> ProviderStates,
     long EventsObserved,
     long EventsDropped);
 
@@ -411,7 +423,7 @@ public class UserSessionHostTests
 
         await using var host = new UserSessionHost(
             sessionName,
-            new[] { (TestEventSource.ProviderGuid, ProviderId.Unknown) },
+            new[] { (TestEventSource.ProviderGuid, ProviderId.Test) },
             channel.Writer);
 
         await host.StartAsync(CancellationToken.None);
@@ -425,7 +437,7 @@ public class UserSessionHostTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var received = await channel.Reader.ReadAsync(cts.Token);
 
-        received.ProviderId.Should().Be(ProviderId.Unknown);
+        received.ProviderId.Should().Be(ProviderId.Test);
         received.EventId.Should().Be(1);
         received.PayloadJson.Should().Contain("hello");
     }
@@ -888,7 +900,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     }
 
     public CaptureStatus GetStatus() => new(
-        ProviderStates: _states,
+        ProviderStates: _states.ToImmutableDictionary(),
         EventsObserved: Interlocked.Read(ref _eventsObserved),
         EventsDropped: Interlocked.Read(ref _eventsDropped));
 
