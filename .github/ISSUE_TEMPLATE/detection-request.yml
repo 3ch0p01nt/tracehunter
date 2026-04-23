@@ -1,0 +1,23 @@
+name: Detection rule request
+description: Request a new built-in detection rule
+labels: [detection]
+body:
+  - type: textarea
+    id: technique
+    attributes:
+      label: What technique should this detect?
+      description: MITRE ATT&CK technique ID and a one-line description.
+    validations:
+      required: true
+  - type: textarea
+    id: telemetry
+    attributes:
+      label: What ETW events would catch it?
+      description: Which providers and event types.
+    validations:
+      required: true
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Links to threat reports, existing Sigma rules, or sample artifacts.
