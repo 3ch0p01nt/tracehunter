@@ -1,0 +1,14 @@
+<Project>
+  <Import Project="$(MSBuildThisFileDirectory)..\Directory.Build.props" />
+  <PropertyGroup>
+    <!--
+      Test projects intentionally use snake_case method names like
+      Some_method_does_thing(), and nested theory data classes. The Recommended
+      analysis mode trips CA1707 (underscores in identifiers) and CA1034
+      (do not nest types) on those patterns. Drop to Default and silence those
+      two specifically rather than disabling analyzers wholesale.
+    -->
+    <AnalysisMode>Default</AnalysisMode>
+    <NoWarn>$(NoWarn);CA1707;CA1034</NoWarn>
+  </PropertyGroup>
+</Project>

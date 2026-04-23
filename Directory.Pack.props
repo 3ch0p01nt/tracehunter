@@ -1,0 +1,18 @@
+<Project>
+  <!--
+    NuGet pack metadata. Not auto-imported. To enable packaging for a project,
+    add the following line inside its csproj <Project> element:
+
+      <Import Project="$(MSBuildThisFileDirectory)Directory.Pack.props" />
+
+    Phase 0 ships no packageable projects, so nothing imports this yet.
+  -->
+  <PropertyGroup>
+    <Authors>Robert Soligan</Authors>
+    <Company>TraceHunter</Company>
+    <Product>TraceHunter</Product>
+    <Copyright>Copyright (c) 2026 Robert Soligan</Copyright>
+    <Version>0.1.0</Version>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+  </PropertyGroup>
+</Project>

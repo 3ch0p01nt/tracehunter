@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\TraceHunter.Core\TraceHunter.Core.csproj" />
+    <ProjectReference Include="..\TraceHunter.Capture\TraceHunter.Capture.csproj" />
+    <ProjectReference Include="..\TraceHunter.Normalization\TraceHunter.Normalization.csproj" />
+    <ProjectReference Include="..\TraceHunter.Enrichment\TraceHunter.Enrichment.csproj" />
+    <ProjectReference Include="..\TraceHunter.Detection\TraceHunter.Detection.csproj" />
+    <ProjectReference Include="..\TraceHunter.Storage\TraceHunter.Storage.csproj" />
+    <ProjectReference Include="..\TraceHunter.Web\TraceHunter.Web.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" />
+    <PackageReference Include="System.CommandLine" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+</Project>

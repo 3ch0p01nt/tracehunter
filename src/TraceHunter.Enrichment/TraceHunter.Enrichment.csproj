@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\TraceHunter.Core\TraceHunter.Core.csproj" />
+    <ProjectReference Include="..\TraceHunter.Normalization\TraceHunter.Normalization.csproj" />
+  </ItemGroup>
+</Project>

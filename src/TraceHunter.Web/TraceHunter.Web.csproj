@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <ProjectReference Include="..\TraceHunter.Core\TraceHunter.Core.csproj" />
+    <ProjectReference Include="..\TraceHunter.Detection\TraceHunter.Detection.csproj" />
+    <ProjectReference Include="..\TraceHunter.Enrichment\TraceHunter.Enrichment.csproj" />
+    <ProjectReference Include="..\TraceHunter.Storage\TraceHunter.Storage.csproj" />
+  </ItemGroup>
+</Project>

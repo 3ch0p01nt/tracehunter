@@ -23,7 +23,8 @@
 - Live process provenance graph in an embedded Blazor Server UI on `localhost`.
 - Both interactive (`tracehunter run`) and Windows Service modes.
 - Performance budget: <5% CPU and <300 MB RAM at idle, hard cap configurable.
-- Apache 2.0 licensed; runs on .NET 8 LTS, Windows x64 and ARM64.
+- Apache 2.0 licensed; runs on .NET 8 LTS (target framework `net8.0-windows`), Windows x64 and ARM64.
+- Supported OS floor: Windows 10 1607 (LTSC 2016, Aug 2016) and all Windows 11 — chose .NET 8 specifically because it's the only current LTS that still runs on LTSC 2016.
 
 ### Non-goals (v1.0)
 - Multi-host / fleet management — post-v2 phase.
@@ -484,7 +485,7 @@ Phases 1-5 ship together as a "headless v0.5 preview" if early signal is needed 
 | Storage | Hot in-memory + warm SQLite (v1); cold ETLX (v1.1) | Each tier optimized for its workload |
 | MVP providers | Process, ImageLoad, Network, PowerShell, CLR, DNS, WMI | Credible EDR coverage minus the high-volume kernel firehose |
 | Performance budget | <5% CPU / <300 MB RAM, hard cap configurable | Realistic for solo OSS dev; production-safe claim |
-| Runtime | .NET 8 LTS | Supported through Nov 2026; AOT-capable for future |
+| Runtime | .NET 8 LTS, target `net8.0-windows` | Only current LTS that supports Windows 10 1607 / LTSC 2016; supported through Nov 2026; AOT-capable for future |
 | License | Apache 2.0 | Patent grant matters for security tooling |
 | Name | TraceHunter | Descriptive, googleable, brandable |
 | Privilege model | Graceful degradation | Wins non-admin analysts on first try |
