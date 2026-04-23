@@ -40,9 +40,29 @@ public class CaptureEndToEndTests
 
         IntegrationTestEventSource.Log.Hello("phase-1");
 
+        // Loop ReadAllAsync and accept the first event whose payload matches "phase-1".
+        // Hardens against any other ETW noise that might land on the test session.
+        RawEvent? matched = null;
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var ev = await channel.Reader.ReadAsync(cts.Token);
+        try
+        {
+            await foreach (var ev in channel.Reader.ReadAllAsync(cts.Token))
+            {
+                if (ev.PayloadJson.Contains("phase-1", StringComparison.Ordinal))
+                {
+                    matched = ev;
+                    break;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Timed out without finding a match; matched stays null and assertion fails.
+        }
 
-        ev.PayloadJson.Should().Contain("phase-1");
+        matched.Should().NotBeNull();
+        matched!.ProviderId.Should().Be(ProviderId.Test);
+        matched.EventId.Should().Be(1);
+        matched.PayloadJson.Should().Contain("phase-1");
     }
 }

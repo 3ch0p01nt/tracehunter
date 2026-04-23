@@ -44,6 +44,15 @@ public sealed class UserSessionHost : ISessionHost
 
         _session.Source.Dynamic.All += data =>
         {
+            // ETW emits a synthetic manifest event (ID 65534) when EnableProvider attaches
+            // an EventSource. It is a schema descriptor (the EventSource self-describing
+            // payload), not telemetry, and would otherwise mask the first real event from
+            // a single Channel.ReadAsync. Drop it before further dispatch.
+            if ((int)data.ID == 65534)
+            {
+                return;
+            }
+
             if (!providerLookup.TryGetValue(data.ProviderGuid, out var providerId))
             {
                 return;

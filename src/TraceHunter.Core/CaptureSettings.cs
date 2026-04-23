@@ -14,6 +14,10 @@ public sealed record CaptureSettings
     public static FrozenSet<ProviderId> AllProviders { get; } = new[]
     {
         ProviderId.KernelProcess, ProviderId.KernelImage, ProviderId.KernelNetwork,
-        ProviderId.PowerShell, ProviderId.DotNetRuntime, ProviderId.DnsClient, ProviderId.WmiActivity,
+        ProviderId.PowerShell, ProviderId.DotNetRuntime, ProviderId.DnsClient,
+        // WmiActivity intentionally excluded from v1 defaults: enabling its provider GUID
+        // (1418ef04-b0b4-4623-bf7e-d74ab47bbdaa) crashes Source.Process() with
+        // 0x80071069 (WBEM_E_NOT_FOUND) on some Windows hosts, including
+        // GitHub Actions windows-latest runners. Tracked for Phase 1.x investigation.
     }.ToFrozenSet();
 }

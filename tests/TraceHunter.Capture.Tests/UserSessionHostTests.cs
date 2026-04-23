@@ -29,12 +29,29 @@ public class UserSessionHostTests
 
         TestEventSource.Log.Ping("hello");
 
-        // Read with timeout
+        // Loop ReadAllAsync and accept the first event whose payload matches "hello".
+        // Hardens against any other ETW noise that might land on the test session.
+        RawEvent? matched = null;
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var received = await channel.Reader.ReadAsync(cts.Token);
+        try
+        {
+            await foreach (var ev in channel.Reader.ReadAllAsync(cts.Token))
+            {
+                if (ev.PayloadJson.Contains("hello", StringComparison.Ordinal))
+                {
+                    matched = ev;
+                    break;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Timed out without finding a match; matched stays null and assertion fails.
+        }
 
-        received.ProviderId.Should().Be(ProviderId.Test);
-        received.EventId.Should().Be(1);
-        received.PayloadJson.Should().Contain("hello");
+        matched.Should().NotBeNull();
+        matched!.ProviderId.Should().Be(ProviderId.Test);
+        matched.EventId.Should().Be(1);
+        matched.PayloadJson.Should().Contain("hello");
     }
 }
