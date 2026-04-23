@@ -13,7 +13,7 @@ internal static class CaptureCommand
     {
         var rawOption = new Option<bool>("--raw")
         {
-            Description = "Emit raw normalized events as newline-delimited JSON to stdout.",
+            Description = "Emit raw RawEvent envelopes as newline-delimited JSON instead of typed NormalizedEvent values.",
         };
 
         var cmd = new Command("capture", "Capture ETW events.");
@@ -22,11 +22,6 @@ internal static class CaptureCommand
         cmd.SetAction(async (parseResult, ct) =>
         {
             var raw = parseResult.GetValue(rawOption);
-            if (!raw)
-            {
-                await Console.Error.WriteLineAsync("capture without --raw is not yet implemented; use --raw.").ConfigureAwait(false);
-                return 2;
-            }
 
             var settings = new CaptureSettings();
             await using var coordinator = new CaptureCoordinator(settings, new PrivilegeProbe());
@@ -47,9 +42,21 @@ internal static class CaptureCommand
             await Console.Error.WriteLineAsync(
                 $"Capturing... press Ctrl+C to stop. Status: {JsonSerializer.Serialize(status)}").ConfigureAwait(false);
 
-            await foreach (var ev in coordinator.Reader.ReadAllAsync(ct).ConfigureAwait(false))
+            if (raw)
             {
-                Console.WriteLine(JsonSerializer.Serialize(ev));
+                await foreach (var ev in coordinator.Reader.ReadAllAsync(ct).ConfigureAwait(false))
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(ev));
+                }
+            }
+            else
+            {
+                // Specify the base type so System.Text.Json emits the polymorphic
+                // discriminator ($type) configured on NormalizedEvent.
+                await foreach (var ev in coordinator.NormalizedReader.ReadAllAsync(ct).ConfigureAwait(false))
+                {
+                    Console.WriteLine(JsonSerializer.Serialize<NormalizedEvent>(ev));
+                }
             }
 
             return 0;

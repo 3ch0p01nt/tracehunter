@@ -38,6 +38,15 @@ public class CaptureCoordinatorTests
         coordinator.Reader.Should().NotBeNull();
     }
 
+    [Fact]
+    public void NormalizedReader_is_available_after_construction()
+    {
+        var settings = new CaptureSettings { UserSessionName = $"TH-Test-{Guid.NewGuid():N}" };
+        var coordinator = new CaptureCoordinator(settings, new FakePrivilegeProbe(elevated: false));
+
+        coordinator.NormalizedReader.Should().NotBeNull();
+    }
+
     [SkippableFact]
     public async Task StartAsync_when_elevated_starts_user_session_providers()
     {
